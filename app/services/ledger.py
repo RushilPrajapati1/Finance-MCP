@@ -55,6 +55,10 @@ class TransactionInput:
     idempotency_key: str | None = None
     external_id: str | None = None
     meta: dict | None = field(default=None)
+    # Caller-supplied audit principal within the tenant (e.g. the tenant's own
+    # user id). Server-derived audit fields (api_key_id, source_ip) are passed
+    # separately to the service, not via this client-facing input.
+    actor: str | None = None
 
 
 async def _load_transaction(
@@ -228,11 +232,17 @@ async def post_transaction(
     session: AsyncSession,
     tenant_id: uuid.UUID,
     data: TransactionInput,
+    *,
+    api_key_id: uuid.UUID | None = None,
+    source_ip: str | None = None,
 ) -> Transaction:
     """Validate and atomically post a balanced transaction.
 
     Idempotent on ``idempotency_key``: replaying a request with a key already
     seen for this tenant returns the original transaction and posts nothing new.
+
+    ``api_key_id`` and ``source_ip`` are the server-derived audit context (which
+    credential, from where); ``data.actor`` is the caller-supplied principal.
     """
     if data.idempotency_key:
         existing = await _find_by_idempotency_key(
@@ -262,6 +272,9 @@ async def post_transaction(
         idempotency_key=data.idempotency_key,
         external_id=data.external_id,
         meta=data.meta,
+        api_key_id=api_key_id,
+        actor=data.actor,
+        source_ip=source_ip,
     )
     session.add(transaction)
     await session.flush()  # assign transaction.id
@@ -299,6 +312,9 @@ async def reverse_transaction(
     *,
     idempotency_key: str | None = None,
     description: str | None = None,
+    api_key_id: uuid.UUID | None = None,
+    actor: str | None = None,
+    source_ip: str | None = None,
 ) -> Transaction:
     """Post a reversing transaction that negates ``transaction_id``.
 
@@ -348,6 +364,9 @@ async def reverse_transaction(
         idempotency_key=idempotency_key,
         reverses_transaction_id=original.id,
         meta={"reversal_of": str(original.id)},
+        api_key_id=api_key_id,
+        actor=actor,
+        source_ip=source_ip,
     )
     session.add(reversal)
     await session.flush()

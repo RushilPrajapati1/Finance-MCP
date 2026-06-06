@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import SessionDep, TenantDep
+from app.api.deps import PrincipalDep, SessionDep, TenantDep
 from app.api.schemas import (
     ReversalCreate,
     TransactionCreate,
@@ -32,11 +32,11 @@ async def _exponents_for(session: AsyncSession, transaction: Transaction) -> dic
 
 @router.post("", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
 async def post_transaction(
-    body: TransactionCreate, tenant: TenantDep, session: SessionDep
+    body: TransactionCreate, principal: PrincipalDep, session: SessionDep
 ) -> TransactionOut:
     transaction = await ledger_service.post_transaction(
         session,
-        tenant.id,
+        principal.tenant.id,
         TransactionInput(
             postings=[
                 PostingInput(
@@ -51,7 +51,10 @@ async def post_transaction(
             idempotency_key=body.idempotency_key,
             external_id=body.external_id,
             meta=body.metadata,
+            actor=body.actor,
         ),
+        api_key_id=principal.api_key.id,
+        source_ip=principal.source_ip,
     )
     return TransactionOut.from_model(
         transaction, await _exponents_for(session, transaction)
@@ -112,15 +115,18 @@ async def get_transaction(
 async def reverse_transaction(
     transaction_id: UUID,
     body: ReversalCreate,
-    tenant: TenantDep,
+    principal: PrincipalDep,
     session: SessionDep,
 ) -> TransactionOut:
     reversal = await ledger_service.reverse_transaction(
         session,
-        tenant.id,
+        principal.tenant.id,
         transaction_id,
         idempotency_key=body.idempotency_key,
         description=body.description,
+        api_key_id=principal.api_key.id,
+        actor=body.actor,
+        source_ip=principal.source_ip,
     )
     return TransactionOut.from_model(
         reversal, await _exponents_for(session, reversal)

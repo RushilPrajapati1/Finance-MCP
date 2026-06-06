@@ -176,6 +176,16 @@ class Transaction(Base):
     reverses_transaction_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("transactions.id"), nullable=True
     )
+    # Audit trail: who/what created this transaction. ``api_key_id`` and
+    # ``source_ip`` are server-derived (the resolved credential and request
+    # origin); ``actor`` is a caller-supplied principal *within* the tenant
+    # (e.g. the tenant's own user id). All nullable: historical rows and
+    # service-internal writes may have no actor context.
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("api_keys.id"), nullable=True
+    )
+    actor: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     meta: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
     posted_at: Mapped[datetime] = _now()
     created_at: Mapped[datetime] = _now()

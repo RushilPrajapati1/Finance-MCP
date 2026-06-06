@@ -84,11 +84,17 @@ class TransactionCreate(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=255)
     external_id: str | None = Field(default=None, max_length=255)
     metadata: dict | None = None
+    actor: str | None = Field(
+        default=None,
+        max_length=255,
+        description="Audit principal within the tenant (e.g. the acting user id).",
+    )
 
 
 class ReversalCreate(BaseModel):
     description: str | None = None
     idempotency_key: str | None = Field(default=None, max_length=255)
+    actor: str | None = Field(default=None, max_length=255)
 
 
 class PostingOut(BaseModel):
@@ -109,6 +115,10 @@ class TransactionOut(BaseModel):
     external_id: str | None
     reverses_transaction_id: UUID | None
     metadata: dict | None
+    # Audit trail.
+    api_key_id: UUID | None
+    actor: str | None
+    source_ip: str | None
     postings: list[PostingOut]
     posted_at: datetime
     created_at: datetime
@@ -122,6 +132,9 @@ class TransactionOut(BaseModel):
             external_id=transaction.external_id,
             reverses_transaction_id=transaction.reverses_transaction_id,
             metadata=transaction.meta,
+            api_key_id=transaction.api_key_id,
+            actor=transaction.actor,
+            source_ip=transaction.source_ip,
             posted_at=transaction.posted_at,
             created_at=transaction.created_at,
             postings=[
