@@ -1,0 +1,15 @@
+# Keep the build context (and the image) small. Render uploads this whole
+# folder as build context, so excluding the local venv/caches speeds builds.
+.venv
+.git
+.github
+.pytest_cache
+.ruff_cache
+*.egg-info
+__pycache__
+**/__pycache__
+.DS_Store
+.env
+.env.*
+tests
+docs

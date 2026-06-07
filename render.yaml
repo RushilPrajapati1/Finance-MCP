@@ -1,0 +1,31 @@
+# Render Blueprint for the FinLedger API.
+# Deploy: push this repo to GitHub, then in Render → "New +" → "Blueprint" and
+# point it at the repo. Render reads this file and creates the service.
+#
+# Postgres is NOT defined here — it lives on Neon (free, with point-in-time
+# recovery). You paste the Neon connection string into FINLEDGER_DATABASE_URL
+# in the Render dashboard (it is marked sync:false so it is never committed).
+services:
+  - type: web
+    name: finledger-api
+    runtime: docker
+    plan: free
+    region: oregon            # pick the Render region closest to your Neon region
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health   # Render polls this; returns 200 when the app is up
+    autoDeploy: true           # redeploy on every push to the connected branch
+    envVars:
+      # Neon connection string, converted for asyncpg + SSL. Set in the dashboard:
+      #   postgresql+asyncpg://USER:PASSWORD@HOST/DBNAME?ssl=require
+      - key: FINLEDGER_DATABASE_URL
+        sync: false
+      - key: FINLEDGER_ENVIRONMENT
+        value: production
+      # The Dockerfile's CMD listens on 8000; tell Render to route/health-check 8000.
+      - key: PORT
+        value: "8000"
+      # Optional: keep the pool small so Neon's free connection budget isn't strained.
+      - key: FINLEDGER_DB_POOL_SIZE
+        value: "5"
+      - key: FINLEDGER_DB_MAX_OVERFLOW
+        value: "5"
