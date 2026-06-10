@@ -25,7 +25,14 @@ const DEFAULT_BASE_URL = '/api'
 // VITE_FINLEDGER_API_KEY is used as the default when nothing is saved in this
 // browser. localStorage (the Settings screen) always takes precedence, so you
 // can still override or rotate the key in the UI without touching the file.
-const ENV_API_KEY = (import.meta.env.VITE_FINLEDGER_API_KEY ?? '').trim()
+//
+// Dev-only on purpose: in a production build Vite would inline the key as a
+// plain string in the public JS bundle, leaking it to every visitor. So we
+// only read it under `import.meta.env.DEV`; production users enter their key
+// in Settings (localStorage).
+const ENV_API_KEY = import.meta.env.DEV
+  ? (import.meta.env.VITE_FINLEDGER_API_KEY ?? '').trim()
+  : ''
 
 export class ApiError extends Error {
   code: string
