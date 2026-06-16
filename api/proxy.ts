@@ -1,14 +1,20 @@
 // Server-side proxy (Backend-for-Frontend) for the FinLedger API.
 //
-// The browser calls this function under /api/* with NO credentials. The function
-// runs on Vercel's edge runtime, injects the tenant API key from a SERVER-ONLY
-// env var (FINLEDGER_API_KEY — never a VITE_ var, so it is never bundled into the
-// client), and forwards the request to the Render backend. This is what keeps the
-// secret key off the browser entirely.
+// Every /api/* request is routed here by the rewrite in vercel.json
+// (/api/:path* -> /api/proxy?path=:path*), so a SINGLE function handles every
+// path regardless of depth — avoiding the catch-all routing quirk with
+// [...path] functions on non-Next projects.
+//
+// The browser calls /api/* with NO credentials. This function runs on Vercel's
+// edge runtime, injects the tenant API key from a SERVER-ONLY env var
+// (FINLEDGER_API_KEY — never a VITE_ var, so it is never bundled into the
+// client), and forwards to the Render backend. That keeps the key off the
+// browser entirely. The backend still requires X-API-Key — that is its security
+// boundary and is unchanged; we just supply the key here instead of in the UI.
 //
 // Required Vercel env vars (Project → Settings → Environment Variables):
-//   FINLEDGER_API_KEY   the rotated tenant key (sk_live_...)   [secret]
-//   FINLEDGER_API_URL   the backend base URL (optional; default below)
+//   FINLEDGER_API_KEY   the tenant key (sk_live_...)   [secret, Production + Preview]
+//   FINLEDGER_API_URL   backend base URL (optional; default below)
 
 export const config = { runtime: 'edge' }
 
@@ -21,9 +27,12 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   const url = new URL(req.url)
-  // The SPA uses "/api" as its base; strip it to get the real ledger path.
-  const path = url.pathname.replace(/^\/api/, '') || '/'
-  const target = `${UPSTREAM}${path}${url.search}`
+  // The rewrite passes the real ledger path in the `path` query param; the rest
+  // of the query string (e.g. ?limit=500) is forwarded unchanged.
+  const path = (url.searchParams.get('path') ?? '').replace(/^\/+/, '')
+  url.searchParams.delete('path')
+  const qs = url.searchParams.toString()
+  const target = `${UPSTREAM}/${path}${qs ? `?${qs}` : ''}`
 
   const headers = new Headers(req.headers)
   // The browser must never supply credentials; the server owns the only key.
@@ -31,7 +40,7 @@ export default async function handler(req: Request): Promise<Response> {
   headers.delete('authorization')
   headers.delete('cookie')
   headers.delete('host')
-  // Force identity encoding so the upstream body can be streamed back verbatim.
+  // Force identity encoding so the upstream body streams back verbatim.
   headers.delete('accept-encoding')
   headers.set('X-API-Key', API_KEY)
 
@@ -48,7 +57,6 @@ export default async function handler(req: Request): Promise<Response> {
     return errorJson(502, 'upstream_unavailable', 'The ledger backend is unreachable.')
   }
 
-  // Pass the ledger's response (status, body, content-type) straight through.
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,
