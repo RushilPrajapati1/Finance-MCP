@@ -201,14 +201,14 @@ def _to_posting_inputs(postings: list[PostingArg]) -> list[PostingInput]:
     for p in postings:
         try:
             account_id = uuid.UUID(p.account_id)
-        except (ValueError, AttributeError):
-            raise ValidationError(f"invalid account_id: {p.account_id!r}")
+        except (ValueError, AttributeError) as err:
+            raise ValidationError(f"invalid account_id: {p.account_id!r}") from err
         try:
             direction = Direction(p.direction)
-        except ValueError:
+        except ValueError as err:
             raise ValidationError(
                 f"invalid direction {p.direction!r}: use 'debit' or 'credit'"
-            )
+            ) from err
         # ``amount`` stays a string here; the posting engine parses it exactly via
         # Money.from_decimal and rejects sub-minor precision.
         inputs.append(
@@ -818,8 +818,8 @@ async def reverse_transaction(
     async def run(session: AsyncSession, principal):
         try:
             tid = uuid.UUID(transaction_id)
-        except ValueError:
-            raise ValidationError(f"invalid transaction_id: {transaction_id!r}")
+        except ValueError as err:
+            raise ValidationError(f"invalid transaction_id: {transaction_id!r}") from err
         reversal = await ledger_service.reverse_transaction(
             session,
             principal.tenant.id,
