@@ -25,10 +25,14 @@ dev = [
 mcp = [
     "mcp[cli]>=1.27,<2",
 ]
+integrations = [
+    "httpx>=0.27",
+]
 
 [project.scripts]
 finledger = "app.cli:main"
 finledger-mcp = "app.mcp.__main__:main"
+finledger-import-opencollective = "app.integrations.opencollective:main"
 
 [build-system]
 requires = ["setuptools>=68"]

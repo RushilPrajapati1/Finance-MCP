@@ -167,6 +167,48 @@ finledger-mcp
 
 ---
 
+## Connectors — importing an external ledger
+
+Connectors feed an outside institution's data *into* a tenant so an agent can
+query it. Each is a standalone `fetch → map → load` job that talks to the public
+REST API (`/v1/*`) with a tenant key — nothing DB-side, so it runs against a
+local or a deployed instance. They live in [`app/integrations/`](app/integrations/).
+
+The one real problem a connector solves: external feeds are usually *single-entry*
+("−$50, coffee"), but this engine is strict double-entry. The connector's mapper
+turns each external row into a **balanced** two-leg transaction, and uses the
+source's stable id as the `idempotency_key` so re-runs never double-post.
+
+### Open Collective
+
+[Open Collective](https://opencollective.com) publishes a **transparent public
+ledger** for thousands of open-source collectives over a GraphQL API. The
+connector mirrors one collective's contributions, payouts and fees into a tenant.
+
+```bash
+pip install -e ".[integrations]"
+
+# Preview the mapping — fetches and maps, writes nothing:
+python -m app.integrations.opencollective --collective babel --dry-run --max 20
+
+# Load into a running FinLedger (local or deployed):
+python -m app.integrations.opencollective \
+    --collective webpack \
+    --base-url https://finledger-api-rw1f.onrender.com \
+    --api-key sk_live_... \
+    --max 500
+# or the installed console script: finledger-import-opencollective ...
+```
+
+Mapping (from the collective's perspective, per currency): a `CREDIT`
+(contribution) debits **Cash** and credits an **Income** account; a `DEBIT`
+(expense/fee) debits an **Expenses** account and credits **Cash**. Fees are
+posted as their own rows, so net cash = gross − fees. Once imported, point an
+agent at the MCP tools (`get_portfolio_summary`, `get_trial_balance`,
+`verify_ledger_integrity`) to analyse the collective's finances.
+
+---
+
 ## Deployment (production)
 
 FinLedger runs as a **long-lived container against managed Postgres** — not
